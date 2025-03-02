@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
+import * as use from '@tensorflow-models/universal-sentence-encoder';
+import * as tf from '@tensorflow/tfjs';
 import { Database, ChunkRecord } from './db';
 import { DocumentMetadata } from './types';
 
@@ -81,23 +83,23 @@ export class DocumentProcessor {
       const chunks = this.createChunks(documentId, content, fileType);
       await this.db.addChunks(chunks);
 
-      // In a real app, you would create embeddings here
-      // For now, we'll just create placeholder embeddings
+      // Generate real embeddings
       this.onProgressUpdate({
         isProcessing: true,
         progress: 90,
         message: `Creating embeddings for ${file.name}...`
       });
 
-      // Placeholder for embeddings
-      const embeddings = chunks.map(chunk => ({
+      const embeddings = await this.generateEmbeddings(chunks.map(chunk => chunk.content));
+
+      const embeddingRecords = chunks.map((chunk, index) => ({
         id: uuidv4(),
         chunkId: chunk.id,
-        vector: Array(384).fill(0).map(() => Math.random()), // Placeholder vector
+        vector: embeddings[index],
         tokens: chunk.content.split(/\s+/).slice(0, 20) // Simplified tokens
       }));
 
-      await this.db.addEmbeddings(embeddings);
+      await this.db.addEmbeddings(embeddingRecords);
 
       this.onProgressUpdate({
         isProcessing: false,
@@ -135,7 +137,7 @@ export class DocumentProcessor {
     const arrayBuffer = await file.arrayBuffer();
 
     // Load the PDF document with proper error handling
-    let pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
     let fullText = '';
     let rawContent = '';
@@ -179,7 +181,6 @@ export class DocumentProcessor {
     }
 
     return { content: fullText, rawContent };
-
   }
 
   private async extractTextFromDOCX(file: File): Promise<string> {
@@ -327,5 +328,13 @@ export class DocumentProcessor {
     }
 
     return chunks;
+  }
+
+  private async generateEmbeddings(texts: string[]): Promise<number[][]> {
+    await tf.setBackend('webgl'); // or 'wasm'
+    await tf.ready();
+    const model = await use.load();
+    const embeddings = await model.embed(texts);
+    return embeddings.arraySync();
   }
 }
