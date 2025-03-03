@@ -1,5 +1,5 @@
 import { Database, ChunkRecord } from './db';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { VectorSearchService } from './vectorSearchService';
 
 export type LLMProvider = 'openai' | 'gemini';
 
@@ -11,6 +11,7 @@ export interface LLMModel {
 
 export class ChatService {
   private db: Database;
+  private vectorSearchService: VectorSearchService;
   private openaiApiKey: string | null = null;
   private geminiApiKey: string | null = null;
   private activeProvider: LLMProvider = 'openai';
@@ -20,6 +21,7 @@ export class ChatService {
 
   constructor(db: Database) {
     this.db = db;
+    this.vectorSearchService = new VectorSearchService(db);
     // Try to get API keys from localStorage if available
     this.openaiApiKey = localStorage.getItem('openai_api_key');
     this.geminiApiKey = localStorage.getItem('gemini_api_key');
@@ -80,21 +82,21 @@ export class ChatService {
 
   async fetchAvailableModels(): Promise<LLMModel[]> {
     this.availableModels = [];
-    
+
     try {
       if (this.activeProvider === 'openai' && this.openaiApiKey) {
         const models = await this.fetchOpenAIModels();
         this.availableModels = models;
       } else if (this.activeProvider === 'gemini' && this.geminiApiKey) {
-        const models = this.getGeminiModels();
+        const models = await this.fetchGeminiModels();
         this.availableModels = models;
       }
-      
+
       // If we have models and no active model is set, set the first one as default
       if (this.availableModels.length > 0 && !this.activeModel) {
         this.setActiveModel(this.availableModels[0].id);
       }
-      
+
       return this.availableModels;
     } catch (error) {
       console.error('Error fetching models:', error);
@@ -109,18 +111,18 @@ export class ChatService {
           'Authorization': `Bearer ${this.openaiApiKey}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch OpenAI models: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       // Filter for chat models only and sort by newest first
       const chatModels = data.data
-        .filter((model: any) => 
-          model.id.includes('gpt') && 
-          !model.id.includes('instruct') && 
+        .filter((model: any) =>
+          model.id.includes('gpt') &&
+          !model.id.includes('instruct') &&
           !model.id.includes('-vision-') &&
           !model.id.includes('ft-')
         )
@@ -130,18 +132,18 @@ export class ChatService {
           name: this.formatModelName(model.id),
           provider: 'openai' as LLMProvider
         }));
-      
+
       // Ensure GPT-4o is at the top if available
       const gpt4oIndex = chatModels.findIndex((model: LLMModel) => model.id === 'gpt-4o');
       if (gpt4oIndex !== -1) {
         const gpt4o = chatModels.splice(gpt4oIndex, 1)[0];
         chatModels.unshift(gpt4o);
       }
-      
+
       return chatModels;
     } catch (error) {
       console.error('Error fetching OpenAI models:', error);
-      
+
       // Return default models if API call fails
       return [
         { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
@@ -151,7 +153,8 @@ export class ChatService {
     }
   }
 
-  private getGeminiModels(): LLMModel[] {
+  private async fetchGeminiModels(): Promise<LLMModel[]> {
+
     return [
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini' },
@@ -167,7 +170,7 @@ export class ChatService {
       'gpt-4': 'GPT-4',
       'gpt-3.5-turbo': 'GPT-3.5 Turbo'
     };
-    
+
     return nameMap[modelId] || modelId;
   }
 
@@ -194,7 +197,7 @@ export class ChatService {
       if (!this.activeModel && this.availableModels.length > 0) {
         this.setActiveModel(this.availableModels[0].id);
       }
-      
+
       if (!this.activeModel) {
         throw new Error(`No model selected for ${this.activeProvider}. Please select a model in settings.`);
       }
@@ -202,8 +205,8 @@ export class ChatService {
 
     try {
       // 1. Get relevant chunks using vector similarity search
-      const relevantChunks = await this.searchRelevantChunks(query, contextId);
-      
+      const relevantChunks = await this.vectorSearchService.searchSimilarChunks(query, contextId);
+
       if (relevantChunks.length === 0) {
         return {
           answer: "I couldn't find any relevant information in the uploaded documents. Please try a different query or upload more documents.",
@@ -237,87 +240,11 @@ export class ChatService {
     }
   }
 
-  private async searchRelevantChunks(query: string, contextId?: string): Promise<ChunkRecord[]> {
-    // In a real application, you would:
-    // 1. Generate embeddings for the query
-    // 2. Perform vector similarity search against stored embeddings
-    // 3. Return the most relevant chunks
-    
-    // For this demo, we'll use a simplified approach
-    // that searches for keyword matches in the chunks
-    
-    // Get all chunks from the database
-    const allDocuments = await this.db.getDocuments();
-    
-    if (allDocuments.length === 0) {
-      return [];
-    }
-    
-    // Filter documents by context if provided
-    const filteredDocuments = contextId
-      ? allDocuments.filter(doc => doc.metadata?.context === contextId)
-      : allDocuments;
-    
-    if (filteredDocuments.length === 0) {
-      return [];
-    }
-    
-    // Get chunks from filtered documents
-    const allChunksPromises = filteredDocuments.map(doc => this.db.getChunks(doc.id));
-    const allChunksArrays = await Promise.all(allChunksPromises);
-    const allChunks = allChunksArrays.flat();
-    
-    if (allChunks.length === 0) {
-      return [];
-    }
-    
-    // Simple keyword matching (in a real app, use vector similarity)
-    const keywords = query.toLowerCase().split(/\s+/);
-    
-    // Score each chunk based on keyword matches
-    const scoredChunks = allChunks.map(chunk => {
-      const content = chunk.content.toLowerCase();
-      let score = 0;
-      
-      keywords.forEach(keyword => {
-        if (content.includes(keyword)) {
-          score += 1;
-          
-          // Bonus points for context-specific terms
-          if (contextId === 'pensions' && 
-              ['pension', 'transfer', 'value', 'scheme', 'benefit', 'retirement', 'annuity', 'contribution', 'fund'].includes(keyword)) {
-            score += 2;
-          } else if (contextId === 'university' && 
-                    ['assessment', 'grade', 'essay', 'criteria', 'academic', 'research', 'study', 'analysis', 'conclusion'].includes(keyword)) {
-            score += 2;
-          } else if (contextId === 'legal' && 
-                    ['contract', 'agreement', 'clause', 'party', 'legal', 'law', 'obligation', 'rights', 'liability'].includes(keyword)) {
-            score += 2;
-          } else if (contextId === 'medical' && 
-                    ['patient', 'diagnosis', 'treatment', 'doctor', 'hospital', 'medication', 'symptom', 'condition', 'health'].includes(keyword)) {
-            score += 2;
-          }
-        }
-      });
-      
-      return { chunk, score };
-    });
-    
-    // Sort by score and take the top 5
-    const topChunks = scoredChunks
-      .sort((a, b) => b.score - a.score)
-      .filter(item => item.score > 0)
-      .slice(0, 5)
-      .map(item => item.chunk);
-    
-    return topChunks;
-  }
-
   private async generateAnswer(query: string, relevantChunks: ChunkRecord[]): Promise<string> {
     // Prepare context from relevant chunks
     const context = relevantChunks.map(chunk => {
-      const pageInfo = chunk.metadata.pageNumber 
-        ? `[Page ${chunk.metadata.pageNumber}]` 
+      const pageInfo = chunk.metadata.pageNumber
+        ? `[Page ${chunk.metadata.pageNumber}]`
         : '';
       return `${pageInfo} ${chunk.content}`;
     }).join('\n\n');
@@ -380,7 +307,7 @@ For any values, dates, or specific details you mention, indicate which document 
       return data.choices[0].message.content;
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
-      
+
       // Fallback response if API call fails
       return `I encountered an error while processing your query with OpenAI. Please check your API key and try again. Error details: ${error instanceof Error ? error.message : String(error)}`;
     }
@@ -392,19 +319,29 @@ For any values, dates, or specific details you mention, indicate which document 
     }
 
     try {
-      // Initialize the Gemini API
-      const genAI = new GoogleGenerativeAI(this.geminiApiKey);
-      
-      // Use the selected model or default to gemini-1.5-flash
-      const modelName = this.activeModel || "gemini-1.5-flash";
-      const model = genAI.getGenerativeModel({ model: modelName });
-      
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      return response.text();
+      // Call Gemini API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.activeModel}:generateText?key=${this.geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: {
+            text: prompt
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.candidates[0].output;
     } catch (error) {
       console.error('Error calling Gemini API:', error);
-      
+
       // Fallback response if API call fails
       return `I encountered an error while processing your query with Google Gemini. Please check your API key and try again. Error details: ${error instanceof Error ? error.message : String(error)}`;
     }
