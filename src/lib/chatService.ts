@@ -152,7 +152,6 @@ export class ChatService {
   }
 
   private getGeminiModels(): LLMModel[] {
-    // Gemini doesn't have a models endpoint, so we hardcode the available models
     return [
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini' },

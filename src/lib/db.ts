@@ -82,6 +82,18 @@ export class Database extends Dexie {
     
     return chunks.filter(Boolean) as ChunkRecord[];
   }
+
+  async removeDocument(documentId: string) {
+    // Remove the document
+    await this.documents.delete(documentId);
+
+    // Remove associated chunks
+    await this.chunks.where({ documentId }).delete();
+
+    // Remove associated embeddings
+    const chunkIds = await this.chunks.where({ documentId }).primaryKeys();
+    await this.embeddings.where('chunkId').anyOf(chunkIds).delete();
+  }
 }
 
 export interface DocumentRecord {

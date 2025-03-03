@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Database } from '../lib/db';
 import { DocumentProcessor } from '../lib/documentProcessor';
-import { FileUp, File, CheckCircle, AlertCircle, Info, Eye, Tag } from 'lucide-react';
+import { FileUp, File, CheckCircle, AlertCircle, Info, Eye, Tag, Trash2 } from 'lucide-react';
 import { ProjectContext } from '../lib/types';
 
 interface FileUploaderProps {
@@ -144,6 +144,15 @@ export function FileUploader({ db, onProcessingUpdate, onDocumentSelect, activeC
       }
     } catch (error) {
       console.error('Error loading document for viewing:', error);
+    }
+  };
+
+  const handleRemoveDocument = async (documentId: string) => {
+    try {
+      await db.removeDocument(documentId);
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+    } catch (error) {
+      console.error('Error removing document:', error);
     }
   };
 
@@ -358,14 +367,24 @@ export function FileUploader({ db, onProcessingUpdate, onDocumentSelect, activeC
                       {new Date(doc.uploadDate).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button
-                        onClick={() => handleViewDocument(doc.id)}
-                        className="text-blue-600 hover:text-blue-800 flex items-center"
-                        title="View Document"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </button>
+                      <div className="flex space-x-4">
+                        <button
+                          onClick={() => handleViewDocument(doc.id)}
+                          className="text-blue-600 hover:text-blue-800 flex items-center"
+                          title="View Document"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleRemoveDocument(doc.id)}
+                          className="text-red-600 hover:text-red-800 flex items-center"
+                          title="Remove Document"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
