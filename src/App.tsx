@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FileUploader } from './components/FileUploader';
-import { DocumentProcessor } from './components/DocumentProcessor';
 import { ChatInterface } from './components/ChatInterface';
 import { DocumentViewer } from './components/DocumentViewer';
 import { Database } from './lib/db';

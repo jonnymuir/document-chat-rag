@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Database } from '../lib/db';
 import { DocumentProcessor } from '../lib/documentProcessor';
@@ -82,7 +82,7 @@ export function FileUploader({ db, onProcessingUpdate, onDocumentSelect, activeC
           tags: documentTags[index] || []
         };
 
-        const documentId = await documentProcessor.processFile(file, metadata);
+        await documentProcessor.processFile(file, metadata);
         processed.push(file.name);
       } catch (error) {
         console.error(`Error processing file ${file.name}:`, error);
