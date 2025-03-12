@@ -12,17 +12,6 @@ const db = new Database();
 // Available project contexts
 const availableContexts: ProjectContext[] = [
   {
-    id: 'pensions',
-    name: 'Pension Backfiles',
-    description: 'UK Pensions Administration Tool',
-    promptPrefix: 'You are an expert UK pensions administrator assistant. Focus specifically on UK pension terminology and regulations. If you identify information about transfers, scheme details, benefit values, or retirement options, highlight these clearly.',
-    exampleQuestions: [
-      'What is the transfer value mentioned in the documents?',
-      'When can I access my pension benefits?',
-      'What are the death benefits in my pension scheme?'
-    ]
-  },
-  {
     id: 'university',
     name: 'University Assessments',
     description: 'Academic Assessment Analysis Tool',
@@ -31,6 +20,17 @@ const availableContexts: ProjectContext[] = [
       'Does this assessment meet the criteria for a distinction?',
       'What are the main subjects covered in this document?',
       'How could this assignment be improved?'
+    ]
+  },
+  {
+    id: 'pensions',
+    name: 'Pension Backfiles',
+    description: 'UK Pensions Administration Tool',
+    promptPrefix: 'You are an expert UK pensions administrator assistant. Focus specifically on UK pension terminology and regulations. If you identify information about transfers, scheme details, benefit values, or retirement options, highlight these clearly.',
+    exampleQuestions: [
+      'What is the transfer value mentioned in the documents?',
+      'When can I access my pension benefits?',
+      'What are the death benefits in my pension scheme?'
     ]
   },
   {
