@@ -1,6 +1,8 @@
-# DocuChat (document-chat-rag)
+# ChatToMyDoc (document-chat-rag)
 
-DocuChat is a React application that allows you to upload documents and have targeted conversations using a Retrieval Augmented Generation (RAG) model.
+ChatToMyDoc is a React application that allows you to upload documents and have targeted conversations using a Retrieval Augmented Generation (RAG) model.
+
+Try it out https://chattomydoc.netlify.app
 
 ## Features
 
