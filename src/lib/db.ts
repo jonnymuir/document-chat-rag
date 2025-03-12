@@ -27,7 +27,7 @@ export class Database extends Dexie {
     rawContent?: string;
     metadata?: Record<string, any>;
   }) {
-    return this.documents.put({
+    await this.documents.put({
       id: document.id,
       name: document.name,
       content: document.content,
@@ -36,6 +36,7 @@ export class Database extends Dexie {
       metadata: document.metadata || {},
       uploadDate: new Date().toISOString()
     });
+    await this.removeOrphanedChunksAndEmbeddings();
   }
 
   async getDocuments() {
@@ -47,7 +48,8 @@ export class Database extends Dexie {
   }
 
   async addChunks(chunks: ChunkRecord[]) {
-    return this.chunks.bulkPut(chunks);
+    await this.chunks.bulkPut(chunks);
+    await this.removeOrphanedChunksAndEmbeddings();
   }
 
   async getChunks(documentId: string) {
@@ -55,7 +57,8 @@ export class Database extends Dexie {
   }
 
   async addEmbeddings(embeddings: EmbeddingRecord[]) {
-    return this.embeddings.bulkPut(embeddings);
+    await this.embeddings.bulkPut(embeddings);
+    await this.removeOrphanedChunksAndEmbeddings();
   }
 
   async searchSimilarChunks(queryVector: number[], limit = 5) {
@@ -86,13 +89,29 @@ export class Database extends Dexie {
   async removeDocument(documentId: string) {
     // Remove the document
     await this.documents.delete(documentId);
+    await this.removeOrphanedChunksAndEmbeddings();
+  }
 
-    // Remove associated chunks
-    await this.chunks.where({ documentId }).delete();
+  async removeOrphanedChunksAndEmbeddings() {
+    // Get all document IDs
+    const documentIds = await this.documents.toCollection().primaryKeys();
 
-    // Remove associated embeddings
-    const chunkIds = await this.chunks.where({ documentId }).primaryKeys();
-    await this.embeddings.where('chunkId').anyOf(chunkIds).delete();
+    // Remove orphaned chunks
+    const orphanedChunks = await this.chunks
+      .filter(chunk => !documentIds.includes(chunk.documentId))
+      .toArray();
+    const orphanedChunkIds = orphanedChunks.map(chunk => chunk.id);
+    await this.chunks.bulkDelete(orphanedChunkIds);
+
+    // Reload all chunks to get the current state
+    const allChunkIds = await this.chunks.toCollection().primaryKeys();
+
+    // Remove orphaned embeddings
+    const orphanedEmbeddings = await this.embeddings
+      .filter(embedding => !allChunkIds.includes(embedding.chunkId))
+      .toArray();
+    const orphanedEmbeddingIds = orphanedEmbeddings.map(embedding => embedding.id);
+    await this.embeddings.bulkDelete(orphanedEmbeddingIds);
   }
 }
 

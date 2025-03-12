@@ -117,7 +117,7 @@ function App() {
         <div className="container mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center">
             <FileSearch className="mr-2" />
-            Chatty McDoc Face
+            Document Chat
           </h1>
           <div className="flex items-center">
             <div className="relative">
@@ -264,7 +264,7 @@ function App() {
 
       <footer className="bg-gray-100 border-t border-gray-200 p-4">
         <div className="container mx-auto text-center text-gray-600 text-sm">
-          Chatty McDoc Face © {new Date().getFullYear()} - Document Analysis Tool
+          Document Chat © {new Date().getFullYear()} - Document Analysis Tool
         </div>
       </footer>
     </div>

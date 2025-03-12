@@ -1,5 +1,6 @@
 import { Database, ChunkRecord } from './db';
 import { VectorSearchService } from './vectorSearchService';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export type LLMProvider = 'openai' | 'gemini';
 
@@ -205,7 +206,7 @@ export class ChatService {
 
     try {
       // 1. Get relevant chunks using vector similarity search
-      const relevantChunks = await this.vectorSearchService.searchSimilarChunks(query, contextId);
+      const relevantChunks = await this.vectorSearchService.searchSimilarChunks(query);
 
       if (relevantChunks.length === 0) {
         return {
@@ -319,29 +320,19 @@ For any values, dates, or specific details you mention, indicate which document 
     }
 
     try {
-      // Call Gemini API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.activeModel}:generateText?key=${this.geminiApiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: {
-            text: prompt
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.candidates[0].output;
+      // Initialize the Gemini API
+      const genAI = new GoogleGenerativeAI(this.geminiApiKey);
+      
+      // Use the selected model or default to gemini-1.5-flash
+      const modelName = this.activeModel || "gemini-1.5-flash";
+      const model = genAI.getGenerativeModel({ model: modelName });
+      
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      return response.text();
     } catch (error) {
       console.error('Error calling Gemini API:', error);
-
+      
       // Fallback response if API call fails
       return `I encountered an error while processing your query with Google Gemini. Please check your API key and try again. Error details: ${error instanceof Error ? error.message : String(error)}`;
     }
